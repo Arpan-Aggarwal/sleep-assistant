@@ -1,54 +1,53 @@
-# test_classifier.py
-from core.classifier import SleepClassifier
+# test_firebase.py
+import firebase_admin
+from firebase_admin import credentials, firestore
+from firebase_config import FIREBASE_CONFIG
+import pyrebase
 
-clf = SleepClassifier()
-print(f"Model loaded: {clf.is_model_loaded()}")
-print()
+# ─── Test 1: Admin SDK (for backend operations) ───────────
 
-print("=== Test 1: High risk — too much screen time ===")
-result = clf.classify({
-    'total_screen_time': 55,
-    'unlock_count': 14,
-    'longest_session': 30,
-    'hour_of_first_use': 23,
-    'app_category': 2
-})
-print(f"Result: {result}")  # Expected: High
-print()
+print("=== Test 1: Firebase Admin SDK ===")
+try:
+    cred = credentials.Certificate('serviceAccountKey.json')
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("Firebase Admin connected successfully")
+except Exception as e:
+    print(f"Admin SDK failed: {e}")
 
-print("=== Test 2: High risk — many unlocks late at night ===")
-result = clf.classify({
-    'total_screen_time': 18,
-    'unlock_count': 12,
-    'longest_session': 5,
-    'hour_of_first_use': 23,
-    'app_category': 2
-})
-print(f"Result: {result}")  # Expected: High
-print()
+# ─── Test 2: Pyrebase (for authentication) ────────────────
 
-print("=== Test 3: Medium risk ===")
-result = clf.classify({
-    'total_screen_time': 25,
-    'unlock_count': 6,
-    'longest_session': 12,
-    'hour_of_first_use': 22,
-    'app_category': 0
-})
-print(f"Result: {result}")  # Expected: Medium
-print()
+print("\n=== Test 2: Pyrebase Auth ===")
+try:
+    firebase = pyrebase.initialize_app(FIREBASE_CONFIG)
+    auth = firebase.auth()
+    print("Pyrebase connected successfully")
+except Exception as e:
+    print(f"Pyrebase failed: {e}")
 
-print("=== Test 4: Low risk ===")
-result = clf.classify({
-    'total_screen_time': 8,
-    'unlock_count': 2,
-    'longest_session': 6,
-    'hour_of_first_use': 22,
-    'app_category': 1
-})
-print(f"Result: {result}")  # Expected: Low
-print()
+# ─── Test 3: Write to Firestore ───────────────────────────
 
-print("=== Test 5: Missing data (edge case) ===")
-result = clf.classify({})
-print(f"Result: {result}")
+print("\n=== Test 3: Write to Firestore ===")
+try:
+    db.collection('test').document('connection_test').set({
+        'status': 'connected',
+        'message': 'Sleep Assistant Firebase is working'
+    })
+    print("Write to Firestore successful")
+except Exception as e:
+    print(f"Firestore write failed: {e}")
+
+# ─── Test 4: Read from Firestore ──────────────────────────
+
+print("\n=== Test 4: Read from Firestore ===")
+try:
+    doc = db.collection('test').document('connection_test').get()
+    if doc.exists:
+        print("Read from Firestore successful")
+        print("Data:", doc.to_dict())
+    else:
+        print("Document not found")
+except Exception as e:
+    print(f"Firestore read failed: {e}")
+
+print("\nAll Firebase tests done.")
