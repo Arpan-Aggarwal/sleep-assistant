@@ -1,53 +1,92 @@
-# test_firebase.py
-import firebase_admin
-from firebase_admin import credentials, firestore
-from firebase_config import FIREBASE_CONFIG
-import pyrebase
+# test_firestore.py
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# ─── Test 1: Admin SDK (for backend operations) ───────────
+import time
+from firebase.auth import FirebaseAuth
+from firebase.firestore import FirestoreManager
+from core.queue_manager import QueueManager
 
-print("=== Test 1: Firebase Admin SDK ===")
-try:
-    cred = credentials.Certificate('serviceAccountKey.json')
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("Firebase Admin connected successfully")
-except Exception as e:
-    print(f"Admin SDK failed: {e}")
+# First sign in
+auth = FirebaseAuth()
+result = auth.sign_in(
+    email="testuser@sleepapp.com",
+    password="test123456"
+)
 
-# ─── Test 2: Pyrebase (for authentication) ────────────────
+if not result['success']:
+    print("Sign in failed — cannot test Firestore")
+    exit()
 
-print("\n=== Test 2: Pyrebase Auth ===")
-try:
-    firebase = pyrebase.initialize_app(FIREBASE_CONFIG)
-    auth = firebase.auth()
-    print("Pyrebase connected successfully")
-except Exception as e:
-    print(f"Pyrebase failed: {e}")
+user_id = result['user_id']
+queue   = QueueManager()
+fs      = FirestoreManager(user_id, queue)
+print(f"Signed in as: {user_id}\n")
 
-# ─── Test 3: Write to Firestore ───────────────────────────
+# ─── Test 1: Save Profile ─────────────────────────────────
+print("=== Test 1: Save Profile ===")
+fs.save_profile({
+    'sleepGoalTime': '11:00 PM',
+    'wakeTime':      '6:30 AM',
+    'mode':          'silent'
+})
+time.sleep(2)  # Wait for async thread
+print()
 
-print("\n=== Test 3: Write to Firestore ===")
-try:
-    db.collection('test').document('connection_test').set({
-        'status': 'connected',
-        'message': 'Sleep Assistant Firebase is working'
-    })
-    print("Write to Firestore successful")
-except Exception as e:
-    print(f"Firestore write failed: {e}")
+# ─── Test 2: Push Night Event ────────────────────────────
+print("=== Test 2: Push Night Event ===")
+fs.push_night_event({
+    'total_screen_time': 47,
+    'unlock_count':      13,
+    'longest_session':   22,
+    'hour_of_first_use': 23,
+    'app_category':      2,
+    'risk_local':        'High'
+})
+time.sleep(2)
+print()
 
-# ─── Test 4: Read from Firestore ──────────────────────────
+# ─── Test 3: Save Risk Score ─────────────────────────────
+print("=== Test 3: Save Risk Score ===")
+fs.save_risk_score('High', {
+    'total_screen_time': 47,
+    'unlock_count':      13,
+    'longest_session':   22
+})
+time.sleep(2)
+print()
 
-print("\n=== Test 4: Read from Firestore ===")
-try:
-    doc = db.collection('test').document('connection_test').get()
-    if doc.exists:
-        print("Read from Firestore successful")
-        print("Data:", doc.to_dict())
-    else:
-        print("Document not found")
-except Exception as e:
-    print(f"Firestore read failed: {e}")
+# ─── Test 4: Get Last Session ────────────────────────────
+print("=== Test 4: Get Last Session ===")
+def on_session(data):
+    print(f"Session data received: {data}")
 
-print("\nAll Firebase tests done.")
+fs.get_last_session(on_session)
+time.sleep(2)
+print()
+
+# ─── Test 5: Mark Nudge Sent ─────────────────────────────
+print("=== Test 5: Mark Nudge Sent ===")
+fs.mark_nudge_sent()
+time.sleep(2)
+print()
+
+# ─── Test 6: Save Feedback ───────────────────────────────
+print("=== Test 6: Save Feedback ===")
+fs.save_feedback(helped=True, risk_score='High')
+time.sleep(2)
+print()
+
+# ─── Test 7: Offline Queue Flush ─────────────────────────
+print("=== Test 7: Offline Queue Flush ===")
+queue.add_event({'test': 'queued_event', 'unlock_count': 5})
+queue.add_event({'test': 'queued_event_2', 'unlock_count': 8})
+print(f"Queue size before flush: {len(queue.get_all_events())}")
+fs.flush_queue()
+time.sleep(2)
+print(f"Queue size after flush: {len(queue.get_all_events())}")
+print()
+
+print("All Firestore tests done.")
+print("Check your Firebase Console to verify data appeared.")
