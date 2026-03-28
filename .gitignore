@@ -1,0 +1,25 @@
+# Virtual environment - never upload this
+venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Local data files - private user data
+data/
+
+# Firebase secret key - NEVER upload this
+google-services.json
+serviceAccountKey.json
+firebase_config.py
+
+# VS Code settings
+.vscode/
+
+# Model file - too large for GitHub
+models/*.pkl
+
+# OS files
+.DS_Store
+Thumbs.db

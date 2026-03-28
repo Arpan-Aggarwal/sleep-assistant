@@ -1,0 +1,14 @@
+# Core UI Framework
+kivy==2.3.0
+
+# Firebase - Database and Authentication
+firebase-admin==6.5.0
+pyrebase4==4.7.1
+
+# Machine Learning
+scikit-learn==1.4.2
+numpy==1.26.4
+pandas==2.2.2
+
+# Utilities
+python-dotenv==1.0.1
