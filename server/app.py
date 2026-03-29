@@ -11,6 +11,73 @@ from firebase_admin import credentials, firestore, messaging
 
 app = Flask(__name__)
 
+model      = None
+model_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    'model.pkl'
+)
+
+if os.path.exists(model_path):
+    with open(model_path, 'rb') as f:
+        model = pickle.load(f)
+    print("[Server] ML model loaded")
+else:
+    print("[Server] No model found — training fresh model...")
+    try:
+        import numpy as np
+        from sklearn.linear_model import LogisticRegression
+
+        # Same synthetic data as our training notebook
+        np.random.seed(42)
+        n = 200
+
+        # Generate High risk samples
+        high_data = np.column_stack([
+            np.random.randint(40, 80, n//3),   # screen time
+            np.random.randint(10, 20, n//3),   # unlocks
+            np.random.randint(20, 45, n//3),   # longest session
+            np.random.randint(22, 24, n//3),   # hour
+            np.random.randint(2, 4,  n//3)     # category
+        ])
+        high_labels = ['High'] * (n//3)
+
+        # Generate Medium risk samples
+        med_data = np.column_stack([
+            np.random.randint(20, 40, n//3),
+            np.random.randint(5, 10,  n//3),
+            np.random.randint(10, 20, n//3),
+            np.random.randint(21, 23, n//3),
+            np.random.randint(0, 3,   n//3)
+        ])
+        med_labels = ['Medium'] * (n//3)
+
+        # Generate Low risk samples
+        low_data = np.column_stack([
+            np.random.randint(0, 20,  n//3),
+            np.random.randint(0, 5,   n//3),
+            np.random.randint(0, 10,  n//3),
+            np.random.randint(20, 22, n//3),
+            np.random.randint(0, 2,   n//3)
+        ])
+        low_labels = ['Low'] * (n//3)
+
+        # Combine
+        X = np.vstack([high_data, med_data, low_data])
+        y = high_labels + med_labels + low_labels
+
+        # Train
+        model = LogisticRegression(max_iter=1000)
+        model.fit(X, y)
+
+        # Save
+        with open(model_path, 'wb') as f:
+            pickle.dump(model, f)
+
+        print("[Server] Fresh model trained and saved")
+
+    except Exception as e:
+        print(f"[Server] Model training failed: {e}")
+        print("[Server] Will use rule-based classification")
 # ─── Initialize Firebase ─────────────────────────────────────
 
 cred_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
