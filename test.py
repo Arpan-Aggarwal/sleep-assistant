@@ -1,17 +1,14 @@
+# test_onboarding.py
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, FadeTransition
-from kivy.uix.screenmanager import Screen
 from screens.onboarding import OnboardingScreen
 from screens.home_night import HomeNightScreen
 from screens.home_day import HomeDayScreen
-
-
-class SupportScreen(Screen):
-    pass
+from screens.support import SupportScreen
 
 
 class TestApp(App):
@@ -22,8 +19,8 @@ class TestApp(App):
         sm.add_widget(HomeDayScreen(name='home_day'))
         sm.add_widget(SupportScreen(name='support'))
 
-        # Change to 'home_day' to test day screen directly
-        sm.current = 'home_day'
+        # Test support screen directly
+        sm.current = 'support'
         return sm
 
 
