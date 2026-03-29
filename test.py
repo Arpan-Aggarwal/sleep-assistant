@@ -1,27 +1,21 @@
-# test_onboarding.py
+# test_service.py
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager, FadeTransition
-from screens.onboarding import OnboardingScreen
-from screens.home_night import HomeNightScreen
-from screens.home_day import HomeDayScreen
-from screens.support import SupportScreen
+import time
+from services.background import start_service
 
+print("Starting background service simulation...")
+print("Watch for check logs every 60 seconds")
+print("Press Ctrl+C to stop\n")
 
-class TestApp(App):
-    def build(self):
-        sm = ScreenManager(transition=FadeTransition(duration=0.5))
-        sm.add_widget(OnboardingScreen(name='onboarding'))
-        sm.add_widget(HomeNightScreen(name='home_night'))
-        sm.add_widget(HomeDayScreen(name='home_day'))
-        sm.add_widget(SupportScreen(name='support'))
+# Start service
+thread = start_service()
 
-        # Test support screen directly
-        sm.current = 'support'
-        return sm
-
-
-TestApp().run()
+# Keep running so we can see output
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    print("\nService stopped.")
