@@ -13,7 +13,10 @@ from datetime import datetime
 
 
 # ─── SERVICE ENTRY POINT ─────────────────────────────────────
-
+SERVER_URL = os.environ.get(
+    'SERVER_URL',
+    'https://sleep-assistant.onrender.com'
+)
 def start_service():
     """
     Entry point called by Android or desktop simulation.
