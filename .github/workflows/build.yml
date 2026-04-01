@@ -24,27 +24,11 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          git \
-          openjdk-17-jdk \
-          zip \
-          unzip \
-          libffi-dev \
-          libssl-dev \
-          autoconf \
-          libtool \
-          pkg-config \
-          cmake \
-          libltdl-dev \
-          ccache \
-          libgstreamer1.0-dev \
-          gstreamer1.0-plugins-base
+        sudo apt-get install -y build-essential git openjdk-17-jdk zip unzip libffi-dev libssl-dev autoconf libtool pkg-config cmake libltdl-dev ccache
         echo "Dependencies installed"
 
     - name: Set Java 17
       run: |
-        export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
         echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
         echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
         java -version
@@ -59,33 +43,29 @@ jobs:
 
     - name: Create buildozer spec
       run: |
-        cat > buildozer.spec << 'SPEC'
-[app]
-title = Sleep Assistant
-package.name = sleepassistant
-package.domain = org.sleepapp
-source.dir = .
-source.include_exts = py,png,jpg,kv,json
-source.exclude_dirs = tests,bin,venv,server,cloud_functions,.git,data,.buildozer
-version = 1.0
-requirements = python3,kivy==2.3.0,requests,urllib3
-orientation = portrait
-fullscreen = 0
-android.permissions = INTERNET,FOREGROUND_SERVICE,PACKAGE_USAGE_STATS,POST_NOTIFICATIONS,RECEIVE_BOOT_COMPLETED,WAKE_LOCK
-android.api = 33
-android.minapi = 26
-android.ndk = 25b
-android.sdk = 33
-android.accept_sdk_license = True
-android.archs = arm64-v8a
-android.gradle_dependencies = com.android.support:appcompat-v7:28.0.0
-android.enable_androidx = True
-services = SleepTrackerService:services/background.py:foreground
-[buildozer]
-log_level = 2
-warn_on_root = 1
-SPEC
-        echo "buildozer.spec created"
+        echo "[app]" > buildozer.spec
+        echo "title = Sleep Assistant" >> buildozer.spec
+        echo "package.name = sleepassistant" >> buildozer.spec
+        echo "package.domain = org.sleepapp" >> buildozer.spec
+        echo "source.dir = ." >> buildozer.spec
+        echo "source.include_exts = py,png,jpg,kv,json" >> buildozer.spec
+        echo "source.exclude_dirs = tests,bin,venv,server,cloud_functions,.git,data,.buildozer" >> buildozer.spec
+        echo "version = 1.0" >> buildozer.spec
+        echo "requirements = python3,kivy==2.3.0,requests,urllib3" >> buildozer.spec
+        echo "orientation = portrait" >> buildozer.spec
+        echo "fullscreen = 0" >> buildozer.spec
+        echo "android.permissions = INTERNET,FOREGROUND_SERVICE,PACKAGE_USAGE_STATS,POST_NOTIFICATIONS,RECEIVE_BOOT_COMPLETED,WAKE_LOCK" >> buildozer.spec
+        echo "android.api = 33" >> buildozer.spec
+        echo "android.minapi = 26" >> buildozer.spec
+        echo "android.ndk = 25b" >> buildozer.spec
+        echo "android.sdk = 33" >> buildozer.spec
+        echo "android.accept_sdk_license = True" >> buildozer.spec
+        echo "android.archs = arm64-v8a" >> buildozer.spec
+        echo "android.enable_androidx = True" >> buildozer.spec
+        echo "services = SleepTrackerService:services/background.py:foreground" >> buildozer.spec
+        echo "[buildozer]" >> buildozer.spec
+        echo "log_level = 2" >> buildozer.spec
+        echo "warn_on_root = 1" >> buildozer.spec
         cat buildozer.spec
 
     - name: Setup Android licenses
@@ -93,13 +73,17 @@ SPEC
         mkdir -p ~/.android
         touch ~/.android/repositories.cfg
         mkdir -p $HOME/.buildozer/android/platform/android-sdk/licenses
-        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > \
-          $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> \
-          $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> \
-          $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
         echo "Licenses accepted"
+
+    - name: Set Gradle memory
+      run: |
+        mkdir -p ~/.gradle
+        echo "org.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m" > ~/.gradle/gradle.properties
+        echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
+        echo "Gradle memory configured"
 
     - name: Cache Buildozer
       uses: actions/cache@v4
@@ -107,35 +91,19 @@ SPEC
         path: |
           ~/.buildozer
           ~/.gradle
-        key: buildozer-v2-${{ hashFiles('buildozer.spec') }}
+        key: buildozer-v3-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          buildozer-v2-
-
-    - name: Set Gradle memory
-      run: |
-        mkdir -p ~/.gradle
-        echo "org.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m" \
-          > ~/.gradle/gradle.properties
-        echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
-        echo "Gradle memory set"
+          buildozer-v3-
 
     - name: Build APK
       run: |
         buildozer -v android debug 2>&1
 
-    - name: Show build log on failure
+    - name: Show logs on failure
       if: failure()
       run: |
-        echo "=== Gradle log ==="
-        find . -name "*.log" -path "*/gradle/*" 2>/dev/null \
-          | head -3 | xargs tail -50 2>/dev/null
-        echo "=== Buildozer log ==="
-        find . -name "buildozer.log" 2>/dev/null \
-          | xargs tail -80 2>/dev/null
-        echo "=== Last build errors ==="
-        grep -r "ERROR\|FAILED\|error:" \
-          .buildozer/android/platform/build-arm64-v8a/dists/ \
-          2>/dev/null | tail -30
+        echo "=== Build errors ==="
+        grep -r "ERROR\|FAILED\|error:" .buildozer/ 2>/dev/null | grep -v ".pyc" | tail -30 || echo "no errors found in logs"
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
@@ -148,4 +116,4 @@ SPEC
       if: success()
       run: |
         ls -la bin/
-        echo "APK ready to download"
+        echo "APK ready"
