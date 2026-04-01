@@ -37,7 +37,8 @@ jobs:
           pkg-config \
           cmake \
           libltdl-dev \
-          ccache
+          ccache \
+          wget
         echo "System dependencies installed"
 
     - name: Set Java 17
@@ -52,30 +53,62 @@ jobs:
         pip install buildozer==1.5.0
         pip install cython==0.29.33
         pip install virtualenv
-        echo "Python deps installed"
         buildozer --version
         cython --version
 
-    - name: Use GitHub Actions Android SDK
+    - name: Setup Android SDK tools
       run: |
-        echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "ANDROIDNDK=$ANDROID_NDK_HOME" >> $GITHUB_ENV
-        echo "ANDROIDAPI=33" >> $GITHUB_ENV
-        echo "ANDROIDMINAPI=26" >> $GITHUB_ENV
-        echo "Android SDK at $ANDROID_HOME"
-        echo "Android NDK at $ANDROID_NDK_HOME"
-        ls $ANDROID_HOME
+        # Download and install cmdline-tools which includes sdkmanager
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        cd /tmp
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q commandlinetools-linux-9477386_latest.zip
+        mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+        echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
 
-    - name: Setup Android licenses
+        # Verify sdkmanager works
+        sdkmanager --version
+        echo "sdkmanager installed"
+
+    - name: Accept Android licenses
       run: |
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        yes | sdkmanager --licenses || true
         mkdir -p ~/.android
         touch ~/.android/repositories.cfg
+
+        # Also write license files manually as backup
         mkdir -p $ANDROID_HOME/licenses
         echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_HOME/licenses/android-sdk-license
         echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
         echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_HOME/licenses/android-sdk-license
         echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
         echo "Licenses accepted"
+
+    - name: Install Android build tools
+      run: |
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" || true
+        echo "Build tools installed"
+
+    - name: Set Android environment
+      run: |
+        echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
+        echo "ANDROIDNDK=$ANDROID_HOME/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "ANDROIDAPI=33" >> $GITHUB_ENV
+        echo "ANDROIDMINAPI=26" >> $GITHUB_ENV
+        echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+        echo "Android SDK: $ANDROID_HOME"
+        echo "Android NDK: $ANDROID_HOME/ndk/25.2.9519653"
+
+    - name: Install Android NDK 25
+      run: |
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+        sdkmanager "ndk;25.2.9519653" || true
+        ls $ANDROID_HOME/ndk/ || echo "ndk folder contents above"
+        echo "NDK installed"
 
     - name: Create buildozer spec
       run: |
@@ -94,12 +127,11 @@ jobs:
         echo "android.api = 33" >> buildozer.spec
         echo "android.minapi = 26" >> buildozer.spec
         echo "android.ndk = 25b" >> buildozer.spec
-        echo "android.sdk = 33" >> buildozer.spec
         echo "android.accept_sdk_license = True" >> buildozer.spec
         echo "android.archs = arm64-v8a" >> buildozer.spec
         echo "android.enable_androidx = True" >> buildozer.spec
         echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
-        echo "android.ndk_path = $ANDROID_NDK_HOME" >> buildozer.spec
+        echo "android.ndk_path = $ANDROID_HOME/ndk/25.2.9519653" >> buildozer.spec
         echo "services = SleepTrackerService:services/background.py:foreground" >> buildozer.spec
         echo "[buildozer]" >> buildozer.spec
         echo "log_level = 2" >> buildozer.spec
@@ -121,9 +153,9 @@ jobs:
         path: |
           ~/.buildozer
           ~/.gradle
-        key: buildozer-v5-${{ hashFiles('buildozer.spec') }}
+        key: buildozer-v6-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          buildozer-v5-
+          buildozer-v6-
 
     - name: Build APK
       run: |
@@ -132,12 +164,16 @@ jobs:
     - name: Show logs on failure
       if: failure()
       run: |
-        echo "=== Last 50 lines of buildozer log ==="
-        find .buildozer -name "*.log" 2>/dev/null | head -5 | xargs tail -50 2>/dev/null || echo "no log files found"
-        echo "=== Gradle errors ==="
-        find .buildozer -name "*.log" -path "*/gradle/*" 2>/dev/null | head -3 | xargs tail -30 2>/dev/null || echo "no gradle logs found"
         echo "=== Error lines ==="
-        grep -r "ERROR\|error:\|FAILED" .buildozer/ 2>/dev/null | grep -v ".pyc\|Binary\|png\|jpg" | tail -20 || echo "no error lines found"
+        grep -r "ERROR\|error:\|FAILED" .buildozer/ 2>/dev/null \
+          | grep -v ".pyc\|Binary\|png\|jpg" \
+          | tail -30 \
+          || echo "no error lines found"
+        echo "=== Last build log ==="
+        find .buildozer -name "*.log" 2>/dev/null \
+          | head -3 \
+          | xargs tail -30 2>/dev/null \
+          || echo "no logs found"
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
