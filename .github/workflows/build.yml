@@ -1,0 +1,132 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          openjdk-11-jdk \
+          zip \
+          unzip \
+          libffi-dev \
+          libssl-dev \
+          autoconf \
+          libtool \
+          pkg-config \
+          cmake \
+          libltdl-dev \
+          ccache
+        echo "System dependencies installed"
+
+    - name: Set Java 11
+      run: |
+        sudo update-alternatives --set java \
+          /usr/lib/jvm/java-11-openjdk-amd64/bin/java
+        java -version
+        echo "JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64" \
+          >> $GITHUB_ENV
+
+    - name: Install Python dependencies
+      run: |
+        pip install --upgrade pip
+        pip install buildozer==1.5.0
+        pip install cython==0.29.33
+        pip install virtualenv
+        buildozer --version
+        cython --version
+
+    - name: Create minimal buildozer spec
+      run: |
+        cat > buildozer.spec << 'EOF'
+        [app]
+        title = Sleep Assistant
+        package.name = sleepassistant
+        package.domain = org.sleepapp
+        source.dir = .
+        source.include_exts = py,png,jpg,kv,json
+        source.exclude_dirs = tests,bin,venv,server,cloud_functions,.git,data,.buildozer
+
+        version = 1.0
+
+        requirements = python3,
+            kivy==2.3.0,
+            pyjnius,
+            requests,
+            urllib3
+
+        orientation = portrait
+        fullscreen = 0
+
+        android.permissions = INTERNET,
+            FOREGROUND_SERVICE,
+            PACKAGE_USAGE_STATS,
+            POST_NOTIFICATIONS,
+            RECEIVE_BOOT_COMPLETED,
+            WAKE_LOCK
+
+        android.api = 33
+        android.minapi = 26
+        android.ndk = 25b
+        android.sdk = 33
+        android.accept_sdk_license = True
+        android.archs = arm64-v8a
+
+        services = SleepTrackerService:services/background.py:foreground
+
+        [buildozer]
+        log_level = 2
+        warn_on_root = 1
+        EOF
+        echo "buildozer.spec created"
+        cat buildozer.spec
+
+    - name: Set up Android SDK license
+      run: |
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
+        echo "Android config done"
+
+    - name: Cache Buildozer dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.buildozer
+          ~/.gradle
+        key: buildozer-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          buildozer-
+
+    - name: Build APK
+      run: |
+        buildozer -v android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: sleep-assistant-apk
+        path: bin/*.apk
+        if-no-files-found: error
+
+    - name: Show APK info
+      run: |
+        ls -la bin/
+        echo "APK built successfully"
