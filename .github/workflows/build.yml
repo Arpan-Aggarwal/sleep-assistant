@@ -24,8 +24,21 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential git openjdk-17-jdk zip unzip libffi-dev libssl-dev autoconf libtool pkg-config cmake libltdl-dev ccache
-        echo "Dependencies installed"
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          openjdk-17-jdk \
+          zip \
+          unzip \
+          libffi-dev \
+          libssl-dev \
+          autoconf \
+          libtool \
+          pkg-config \
+          cmake \
+          libltdl-dev \
+          ccache
+        echo "System dependencies installed"
 
     - name: Set Java 17
       run: |
@@ -39,7 +52,30 @@ jobs:
         pip install buildozer==1.5.0
         pip install cython==0.29.33
         pip install virtualenv
+        echo "Python deps installed"
         buildozer --version
+        cython --version
+
+    - name: Use GitHub Actions Android SDK
+      run: |
+        echo "ANDROIDSDK=$ANDROID_HOME" >> $GITHUB_ENV
+        echo "ANDROIDNDK=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "ANDROIDAPI=33" >> $GITHUB_ENV
+        echo "ANDROIDMINAPI=26" >> $GITHUB_ENV
+        echo "Android SDK at $ANDROID_HOME"
+        echo "Android NDK at $ANDROID_NDK_HOME"
+        ls $ANDROID_HOME
+
+    - name: Setup Android licenses
+      run: |
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
+        mkdir -p $ANDROID_HOME/licenses
+        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_HOME/licenses/android-sdk-license
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_HOME/licenses/android-sdk-license
+        echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+        echo "Licenses accepted"
 
     - name: Create buildozer spec
       run: |
@@ -62,28 +98,22 @@ jobs:
         echo "android.accept_sdk_license = True" >> buildozer.spec
         echo "android.archs = arm64-v8a" >> buildozer.spec
         echo "android.enable_androidx = True" >> buildozer.spec
+        echo "android.sdk_path = $ANDROID_HOME" >> buildozer.spec
+        echo "android.ndk_path = $ANDROID_NDK_HOME" >> buildozer.spec
         echo "services = SleepTrackerService:services/background.py:foreground" >> buildozer.spec
         echo "[buildozer]" >> buildozer.spec
         echo "log_level = 2" >> buildozer.spec
         echo "warn_on_root = 1" >> buildozer.spec
+        echo "=== buildozer.spec ==="
         cat buildozer.spec
-
-    - name: Setup Android licenses
-      run: |
-        mkdir -p ~/.android
-        touch ~/.android/repositories.cfg
-        mkdir -p $HOME/.buildozer/android/platform/android-sdk/licenses
-        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-        echo "Licenses accepted"
 
     - name: Set Gradle memory
       run: |
         mkdir -p ~/.gradle
         echo "org.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m" > ~/.gradle/gradle.properties
         echo "org.gradle.daemon=false" >> ~/.gradle/gradle.properties
-        echo "Gradle memory configured"
+        echo "android.useAndroidX=true" >> ~/.gradle/gradle.properties
+        echo "Gradle configured"
 
     - name: Cache Buildozer
       uses: actions/cache@v4
@@ -91,9 +121,9 @@ jobs:
         path: |
           ~/.buildozer
           ~/.gradle
-        key: buildozer-v3-${{ hashFiles('buildozer.spec') }}
+        key: buildozer-v5-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          buildozer-v3-
+          buildozer-v5-
 
     - name: Build APK
       run: |
@@ -102,8 +132,12 @@ jobs:
     - name: Show logs on failure
       if: failure()
       run: |
-        echo "=== Build errors ==="
-        grep -r "ERROR\|FAILED\|error:" .buildozer/ 2>/dev/null | grep -v ".pyc" | tail -30 || echo "no errors found in logs"
+        echo "=== Last 50 lines of buildozer log ==="
+        find .buildozer -name "*.log" 2>/dev/null | head -5 | xargs tail -50 2>/dev/null || echo "no log files found"
+        echo "=== Gradle errors ==="
+        find .buildozer -name "*.log" -path "*/gradle/*" 2>/dev/null | head -3 | xargs tail -30 2>/dev/null || echo "no gradle logs found"
+        echo "=== Error lines ==="
+        grep -r "ERROR\|error:\|FAILED" .buildozer/ 2>/dev/null | grep -v ".pyc\|Binary\|png\|jpg" | tail -20 || echo "no error lines found"
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
@@ -116,4 +150,4 @@ jobs:
       if: success()
       run: |
         ls -la bin/
-        echo "APK ready"
+        echo "APK built and ready to download"
