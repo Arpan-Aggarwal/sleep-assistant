@@ -6,6 +6,10 @@ __pycache__/
 *.pyc
 *.pyo
 
+sleep_assistant_flutter/android/app/google-services.json
+sleep_assistant_flutter/lib/firebase_options.dart
+sleep_assistant_flutter/.dart_tool/
+sleep_assistant_flutter/build/
 # Local data files - private user data
 data/
 

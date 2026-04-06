@@ -203,24 +203,6 @@ class _HomeNightScreenState extends State<HomeNightScreen>
                 ),
               ),
             ),
-            // TEMPORARY TEST BUTTON - remove after testing
-Positioned(
-  bottom: 10,
-  left:   0,
-  right:  0,
-  child: TextButton(
-    onPressed: () =>
-        Navigator.pushReplacementNamed(context, '/home_day'),
-    child: Text(
-      'view morning dashboard',
-      style: TextStyle(
-        color:    Color(AppConstants.lavendorText)
-            .withOpacity(0.2),
-        fontSize: 10,
-      ),
-    ),
-  ),
-),
           ],
         ),
       ),
