@@ -13,164 +13,40 @@ class HomeDayScreen extends StatefulWidget {
 
 class _HomeDayScreenState extends State<HomeDayScreen> {
 
-  Map<String, dynamic> _sessionData = {};
-  bool _loading       = true;
-  bool _feedbackGiven = false;
-  List<Map<String, dynamic>>   _journalEntries = [];
+  Map<String, dynamic>       _sessionData    = {};
+  bool                       _loading        = true;
+  bool                       _feedbackGiven  = false;
+  List<Map<String, dynamic>> _journalEntries = [];
 
   @override
   void initState() {
-  super.initState();
-  _loadData();
-}
-  Widget _journalCard(Map<String, dynamic> entry) {
-  final text      = entry['text']      ?? '';
-  final timestamp = entry['timestamp'] ?? '';
-  final id        = entry['id']        ?? '';
+    super.initState();
+    _loadData();
+  }
 
-  // Format date nicely
-  String dateStr = '';
-  try {
-    final dt  = DateTime.parse(timestamp);
-    final now = DateTime.now();
-    if (dt.day == now.day) {
-      dateStr = 'Today ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
-    } else if (dt.day == now.day - 1) {
-      dateStr = 'Yesterday';
-    } else {
-      dateStr = '${dt.day}/${dt.month}/${dt.year}';
+  Future<void> _loadData() async {
+    setState(() => _loading = true);
+
+    final cache   = await StorageService.getCache();
+    final journal = await StorageService.getJournalEntries();
+
+    print('[DayScreen] Cache: $cache');
+    print('[DayScreen] Journal count: ${journal.length}');
+
+    if (mounted) {
+      setState(() {
+        _sessionData    = cache;
+        _feedbackGiven  = cache['feedbackGiven'] == true;
+        _journalEntries = journal;
+        _loading        = false;
+      });
     }
-  } catch (e) {
-    dateStr = timestamp.substring(0, 10);
   }
-
-  return Container(
-    margin:  const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color:        Color(AppConstants.softNavy),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(
-        color: Color(AppConstants.lavendorText).withOpacity(0.1),
-      ),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── Date and delete button
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              dateStr,
-              style: TextStyle(
-                color:    Color(AppConstants.lavendorText)
-                    .withOpacity(0.5),
-                fontSize: 11,
-              ),
-            ),
-            GestureDetector(
-              onTap: () => _deleteEntry(id),
-              child: Icon(
-                Icons.close_rounded,
-                color: Color(AppConstants.lavendorText)
-                    .withOpacity(0.4),
-                size: 18,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        // ── Journal text
-        Text(
-          text,
-          style: TextStyle(
-            color:    Color(AppConstants.lightText)
-                .withOpacity(0.85),
-            fontSize: 14,
-            height:   1.5,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-Future<void> _deleteEntry(String id) async {
-  await StorageService.deleteJournalEntry(id);
-  final updated = await StorageService.getJournalEntries();
-  setState(() => _journalEntries = updated);
-}
-
-Future<void> _clearAllJournal() async {
-  // Show confirmation dialog first
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: Color(AppConstants.softNavy),
-      title: Text(
-        'Clear all notes?',
-        style: TextStyle(color: Colors.white),
-      ),
-      content: Text(
-        'This cannot be undone.',
-        style: TextStyle(
-          color: Color(AppConstants.lavendorText),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: Text(
-            'Cancel',
-            style: TextStyle(
-              color: Color(AppConstants.lavendorText),
-            ),
-          ),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text(
-            'Clear all',
-            style: TextStyle(color: Colors.redAccent),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  if (confirm == true) {
-    await StorageService.clearAllJournal();
-    setState(() => _journalEntries = []);
-  }
-}
-
-    Future<void> _loadData() async {
-  setState(() => _loading = true);
-
-  final cache   = await StorageService.getCache();
-  final journal = await StorageService.getJournalEntries();
-
-  print('[DayScreen] Cache data: $cache');
-  print('[DayScreen] Journal count: ${journal.length}');
-  print('[DayScreen] Journal entries: $journal');
-
-  if (mounted) {
-    setState(() {
-      _sessionData    = cache;
-      _feedbackGiven  = cache['feedbackGiven'] == true;
-      _journalEntries = journal;
-      _loading        = false;
-    });
-  }
-}
 
   String _generateInsight() {
-    final risk        = _sessionData['riskScore']       ?? '--';
-    final screenTime  = _sessionData['totalScreenTime'] ?? 0;
-    final unlocks     = _sessionData['unlockCount']     ?? 0;
-    final longest     = _sessionData['longestSession']  ?? 0;
+    final risk       = _sessionData['riskScore']       ?? '--';
+    final screenTime = _sessionData['totalScreenTime'] ?? 0;
+    final unlocks    = _sessionData['unlockCount']     ?? 0;
 
     if (risk == 'High') {
       if (screenTime > 40) {
@@ -219,9 +95,71 @@ Future<void> _clearAllJournal() async {
     setState(() => _feedbackGiven = true);
   }
 
+  Future<void> _loadTestData() async {
+    await StorageService.saveCache({
+      'riskScore':       'High',
+      'totalScreenTime': 47,
+      'unlockCount':     13,
+      'longestSession':  22,
+      'nudgeSent':       false,
+      'feedbackGiven':   false,
+    });
+    await StorageService.saveJournalEntry(
+      'Test entry — feeling restless tonight'
+    );
+    await _loadData();
+  }
+
+  Future<void> _deleteEntry(String id) async {
+    await StorageService.deleteJournalEntry(id);
+    final updated = await StorageService.getJournalEntries();
+    setState(() => _journalEntries = updated);
+  }
+
+  Future<void> _clearAllJournal() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Color(AppConstants.softNavy),
+        title: const Text(
+          'Clear all notes?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          'This cannot be undone.',
+          style: TextStyle(
+            color: Color(AppConstants.lavendorText),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: Color(AppConstants.lavendorText),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Clear all',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await StorageService.clearAllJournal();
+      setState(() => _journalEntries = []);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    
     final risk       = _sessionData['riskScore']       ?? '--';
     final screenTime = _sessionData['totalScreenTime'] ?? 0;
     final unlocks    = _sessionData['unlockCount']     ?? 0;
@@ -241,7 +179,6 @@ Future<void> _clearAllJournal() async {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    
 
                     // ── Title
                     Text(
@@ -291,11 +228,12 @@ Future<void> _clearAllJournal() async {
 
                     // ── Stats row
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceAround,
                       children: [
                         _statCard('Screen time', '$screenTime mins'),
-                        _statCard('Unlocks', '$unlocks'),
-                        _statCard('Longest', '$longest mins'),
+                        _statCard('Unlocks',     '$unlocks'),
+                        _statCard('Longest',     '$longest mins'),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -319,6 +257,40 @@ Future<void> _clearAllJournal() async {
                       ),
                     ),
                     const SizedBox(height: 32),
+
+                    // ── Journal entries
+                    if (_journalEntries.isNotEmpty) ...[
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Your notes',
+                            style: TextStyle(
+                              color:      Color(AppConstants.lightText),
+                              fontSize:   16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _clearAllJournal,
+                            child: Text(
+                              'Clear all',
+                              style: TextStyle(
+                                color:    Color(AppConstants.lavendorText)
+                                    .withOpacity(0.5),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ..._journalEntries.map(
+                        (entry) => _journalCard(entry)
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     // ── Feedback
                     if (!_feedbackGiven) ...[
@@ -384,6 +356,22 @@ Future<void> _clearAllJournal() async {
                         ),
                         textAlign: TextAlign.center,
                       ),
+
+                    const SizedBox(height: 32),
+
+                    // ── Test button (subtle, always visible)
+                    TextButton(
+                      onPressed: _loadTestData,
+                      child: Text(
+                        'load test data',
+                        style: TextStyle(
+                          color:    Color(AppConstants.lavendorText)
+                              .withOpacity(0.25),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+
                   ],
                 ),
               ),
@@ -412,6 +400,77 @@ Future<void> _clearAllJournal() async {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _journalCard(Map<String, dynamic> entry) {
+    final text      = entry['text']      ?? '';
+    final timestamp = entry['timestamp'] ?? '';
+    final id        = entry['id']        ?? '';
+
+    String dateStr = '';
+    try {
+      final dt  = DateTime.parse(timestamp);
+      final now = DateTime.now();
+      if (dt.day == now.day) {
+        dateStr =
+            'Today ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+      } else if (dt.day == now.day - 1) {
+        dateStr = 'Yesterday';
+      } else {
+        dateStr = '${dt.day}/${dt.month}/${dt.year}';
+      }
+    } catch (e) {
+      dateStr = timestamp.substring(0, 10);
+    }
+
+    return Container(
+      margin:  const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color:        Color(AppConstants.softNavy),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Color(AppConstants.lavendorText).withOpacity(0.1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                dateStr,
+                style: TextStyle(
+                  color:    Color(AppConstants.lavendorText)
+                      .withOpacity(0.5),
+                  fontSize: 11,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _deleteEntry(id),
+                child: Icon(
+                  Icons.close_rounded,
+                  color: Color(AppConstants.lavendorText)
+                      .withOpacity(0.4),
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            text,
+            style: TextStyle(
+              color:    Color(AppConstants.lightText)
+                  .withOpacity(0.85),
+              fontSize: 14,
+              height:   1.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
