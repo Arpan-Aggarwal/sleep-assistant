@@ -44,6 +44,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/audio/new_rain.mp3
     - assets/audio/rain.mp3
     - assets/audio/white_noise.mp3
     - assets/audio/sleep_music.mp3
+    - assets/audio/piano.mp3
+    - assets/audio/etherial_light.mp3
+    - assets/audio/silent_valley.mp3

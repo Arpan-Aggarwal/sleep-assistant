@@ -195,7 +195,7 @@ class _HomeNightScreenState extends State<HomeNightScreen>
                   ),
                 ),
                 child: Text(
-                  'I need support',
+                  'Help me ease into rest',
                   style: TextStyle(
                     color:    Color(AppConstants.lavendorText),
                     fontSize: 15,
