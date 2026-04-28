@@ -34,8 +34,8 @@ class _SupportScreenState extends State<SupportScreen>
   int _level1SoundIndex = 0;
 
   // ── Wave animation ───────────────────────────────────────
-  late AnimationController _waveController;
-  late Animation<double>   _waveAnim;
+  final List<AnimationController> _waveControllers = [];
+  final List<Animation<double>>   _waveAnims       = [];
 
   // ── Breathing ────────────────────────────────────────────
   late AnimationController _breatheController;
@@ -226,33 +226,43 @@ class _SupportScreenState extends State<SupportScreen>
 
   @override
   void initState() {
-    super.initState();
+  super.initState();
 
-    // Wave animation for level 1
-    _waveController = AnimationController(
+  // Staggered wave animations for level 1
+  for (int i = 0; i < 9; i++) {
+    final controller = AnimationController(
       vsync:    this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
-    _waveAnim = Tween<double>(begin: 0.3, end: 1.0).animate(
+      duration: Duration(milliseconds: 500 + i * 100),
+    );
+    final anim = Tween<double>(begin: 0.1, end: 1.0).animate(
       CurvedAnimation(
-        parent: _waveController,
+        parent: controller,
         curve:  Curves.easeInOut,
       ),
     );
-
-    // Breathing animation
-    _breatheController = AnimationController(
-      vsync:    this,
-      duration: const Duration(seconds: 4),
-    );
-    _breatheAnim = Tween<double>(begin: 0.7, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _breatheController,
-        curve:  Curves.easeInOut,
-      ),
-    );
-    _setRandomAffirmation(isInhale: true);
+    _waveControllers.add(controller);
+    _waveAnims.add(anim);
   }
+
+  // Breathing animation
+  _breatheController = AnimationController(
+    vsync:    this,
+    duration: const Duration(seconds: 4),
+  );
+  _breatheAnim = Tween<double>(begin: 0.7, end: 1.2).animate(
+    CurvedAnimation(
+      parent: _breatheController,
+      curve:  Curves.easeInOut,
+    ),
+  );
+  _setRandomAffirmation(isInhale: true);
+
+  // Auto play next sound when current ends
+  _audioPlayer.onPlayerComplete.listen((_) {
+    if (!mounted) return;
+    _playNextSound();
+  });
+}
 
   void _setRandomAffirmation({required bool isInhale}) {
     final list = isInhale
@@ -265,7 +275,9 @@ class _SupportScreenState extends State<SupportScreen>
 
   @override
   void dispose() {
-    _waveController.dispose();
+    for (final c in _waveControllers) {
+    c.dispose();
+  }
     _breatheController.dispose();
     _breatheTimer?.cancel();
     _blinkTimer?.cancel();
@@ -586,38 +598,39 @@ class _SupportScreenState extends State<SupportScreen>
 
   // Fixed wave — uses AnimationController properly
   Widget _buildSoundWave() {
-    return AnimatedBuilder(
-      animation: _waveAnim,
-      builder: (context, child) {
-        final heights = [8.0, 14.0, 22.0, 32.0, 38.0,
-                         32.0, 22.0, 14.0, 8.0];
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(9, (i) {
-            final baseH = heights[i];
-            final animH = _isPlaying
-                ? baseH * (0.5 + _waveAnim.value *
-                    (0.5 + (i % 3) * 0.2))
-                : 5.0;
-            return AnimatedContainer(
-              duration: Duration(
-                milliseconds: 200 + i * 40,
-              ),
-              curve:  Curves.easeInOut,
-              margin: const EdgeInsets.symmetric(
-                horizontal: 3,
-              ),
-              width:  4,
-              height: animH,
-              decoration: BoxDecoration(
-                color:        Color(AppConstants.lavendorText)
-                    .withOpacity(0.5),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            );
-          }),
-        );
-      },
+    final maxHeights = [
+      12.0, 22.0, 32.0, 42.0, 48.0,
+      42.0, 32.0, 22.0, 12.0
+    ];
+
+    return SizedBox(
+      height: 60,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(9, (i) {
+          return AnimatedBuilder(
+            animation: _waveAnims[i],
+            builder: (context, child) {
+              final height = _isPlaying
+                  ? maxHeights[i] * _waveAnims[i].value
+                  : 4.0;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin:   const EdgeInsets.symmetric(
+                  horizontal: 3,
+                ),
+                width:  5,
+                height: height.clamp(4.0, 60.0),
+                decoration: BoxDecoration(
+                  color:        Color(AppConstants.lavendorText)
+                      .withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              );
+            },
+          );
+        }),
+      ),
     );
   }
 
@@ -1076,7 +1089,16 @@ class _SupportScreenState extends State<SupportScreen>
       ),
     );
   }
-
+  void _autoAdvanceLevel3(int fromTab) {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted || _level3Tab != fromTab) return;
+      final nextTab = fromTab + 1;
+      if (nextTab <= 3) {
+        setState(() {});
+        _switchLevel3Tab(nextTab);
+    }
+  });
+}
   void _switchLevel3Tab(int index) {
     _blinkTimer?.cancel();
     _ballTimer?.cancel();
@@ -1107,19 +1129,20 @@ class _SupportScreenState extends State<SupportScreen>
     });
     _blinkTimer?.cancel();
     _blinkTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (t) {
-        if (!mounted) { t.cancel(); return; }
-        setState(() {
-          if (_blinkSeconds > 0) {
-            _blinkSeconds--;
-          } else {
-            _blinkDone = true;
-            t.cancel();
-          }
-        });
-      },
-    );
+  const Duration(seconds: 1),
+  (t) {
+    if (!mounted) { t.cancel(); return; }
+    setState(() {
+      if (_blinkSeconds > 0) {
+        _blinkSeconds--;
+      } else {
+        _blinkDone = true;
+        t.cancel();
+        _autoAdvanceLevel3(0);
+      }
+    });
+  },
+);
   }
 
   Widget _buildBlinkExercise() {
@@ -1299,6 +1322,12 @@ class _SupportScreenState extends State<SupportScreen>
         });
       });
     });
+    // Auto advance after 2 minutes
+Future.delayed(const Duration(minutes: 2), () {
+  if (!mounted || _level3Tab != 1) return;
+  _followTimer?.cancel();
+  _autoAdvanceLevel3(1);
+});
   }
 
   Widget _buildBallFollow() {
@@ -1411,6 +1440,7 @@ class _SupportScreenState extends State<SupportScreen>
         _ballInstruction = 'Well done.\nClose your eyes and rest.';
         _ballVisible     = false;
       });
+      _autoAdvanceLevel3(2);
       return;
     }
 
@@ -1680,27 +1710,68 @@ class _SupportScreenState extends State<SupportScreen>
   // ─────────────────────────────────────────────────────────
   // SHARED HELPERS
   // ─────────────────────────────────────────────────────────
+  void _startWaves() {
+  for (int i = 0; i < _waveControllers.length; i++) {
+    Future.delayed(Duration(milliseconds: i * 80), () {
+      if (mounted) {
+        _waveControllers[i].repeat(reverse: true);
+      }
+    });
+  }
+}
 
+  void _stopWaves() {
+  for (final c in _waveControllers) {
+    c.stop();
+    c.animateTo(0.1);
+  }
+}
   Future<void> _playSound(String file, String name) async {
     await _audioPlayer.stop();
-    await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    await _audioPlayer.setReleaseMode(ReleaseMode.stop);
     await _audioPlayer.play(AssetSource(file));
     setState(() {
       _isPlaying    = true;
       _currentSound = name;
     });
+    _startWaves();
   }
 
   Future<void> _toggleAudio() async {
     if (_isPlaying) {
       await _audioPlayer.pause();
       setState(() => _isPlaying = false);
+      _stopWaves();
     } else {
       await _audioPlayer.resume();
       setState(() => _isPlaying = true);
+      _startWaves();
     }
+}
+  void _playNextSound() {
+  if (_currentView == 'level1') {
+    final nextIndex =
+        (_level1SoundIndex + 1) % _level1Sounds.length;
+    setState(() => _level1SoundIndex = nextIndex);
+    _playSound(
+      _level1Sounds[nextIndex]['file']!,
+      _level1Sounds[nextIndex]['name']!,
+    );
+  } else if (_currentView == 'level2_sounds') {
+    final level2Sounds = [
+      {'name': 'White noise', 'file': 'audio/white_noise.mp3'},
+      {'name': 'Sleep music', 'file': 'audio/sleep_music.mp3'},
+    ];
+    final currentIdx = level2Sounds.indexWhere(
+      (s) => s['name'] == _currentSound,
+    );
+    final nextIdx = (currentIdx + 1) % level2Sounds.length;
+    _playSound(
+      level2Sounds[nextIdx]['file']!,
+      level2Sounds[nextIdx]['name']!,
+    );
   }
-
+}
   Future<void> _toggleNamedSound(
     String file, String name,
   ) async {

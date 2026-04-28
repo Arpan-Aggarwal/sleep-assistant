@@ -358,20 +358,6 @@ class _HomeDayScreenState extends State<HomeDayScreen> {
                       ),
 
                     const SizedBox(height: 32),
-
-                    // ── Test button (subtle, always visible)
-                    TextButton(
-                      onPressed: _loadTestData,
-                      child: Text(
-                        'load test data',
-                        style: TextStyle(
-                          color:    Color(AppConstants.lavendorText)
-                              .withOpacity(0.25),
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-
                   ],
                 ),
               ),

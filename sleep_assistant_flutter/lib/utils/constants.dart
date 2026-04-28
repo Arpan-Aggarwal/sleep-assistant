@@ -16,6 +16,8 @@ class AppConstants {
   // Night hours
   static const int nightStart = 22;  // 10 PM
   static const int nightEnd   = 4;   // 4 AM
+  // ── Wave controllers ─────────────────────────────────────
+  
 
   // Nudge valid hours
   static const List<int> nudgeHours = [23, 0, 1, 2];
